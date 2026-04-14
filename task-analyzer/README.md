@@ -1,6 +1,6 @@
 # Task Analyzer — MCP Server
 
-Unified MCP server that orchestrates **GitNexus** (code intelligence) và **Task-Master** (task management) through a LangGraph 5-agent pipeline for spec-driven project analysis.
+Unified MCP server that orchestrates **GitNexus** (code intelligence) and **Task-Master** (task management) through a LangGraph 5-agent pipeline for spec-driven project analysis.
 
 ## Architecture
 
@@ -40,40 +40,35 @@ Client (AI Agent)
 ## Project Structure
 
 ```
-project_analyzer/
-├── task-analyzer/        ← This MCP server (orchestrator)
-│   ├── src/
-│   │   ├── index.ts          # HTTP entry point (Express + MCP SDK)
-│   │   ├── server.ts         # MCP tool registrations (3 tools)
-│   │   ├── utils.ts          # Bootstrap, exec, workspace, decrypt
-│   │   ├── types.ts          # Shared TypeScript types
-│   │   ├── agents/           # LangGraph 5-agent pipeline
-│   │   │   ├── graph.ts      # StateGraph builder
-│   │   │   ├── state.ts      # Shared state schema
-│   │   │   ├── decompose.ts  # Agent 1: tasks → modules/APIs/keywords
-│   │   │   ├── code-map.ts   # Agent 2: ChromaDB ∥ GitNexus search
-│   │   │   ├── gap-analysis.ts # Agent 3: spec vs code (conditional)
-│   │   │   ├── impact.ts     # Agent 4: blast radius + estimation
-│   │   │   └── report.ts     # Agent 5: health score + recommendations
-│   │   ├── core/             # Service integrations
-│   │   │   ├── gitnexus.ts   # GitNexus CLI wrapper
-│   │   │   ├── taskmaster.ts # Task-Master CLI wrapper
-│   │   │   ├── chromadb.ts   # Vector store
-│   │   │   ├── llm.ts        # Multi-provider LLM (OpenAI/Anthropic/Ollama)
-│   │   │   ├── git.ts        # Git clone/pull operations
-│   │   │   ├── parsers.ts    # Spec parsers (xlsx/docx/md/redmine/url)
-│   │   │   └── pageindex.ts  # PageIndex tree generator
-│   │   └── tools/            # MCP tool handlers
-│   │       ├── setup-project.ts
-│   │       ├── analyze-spec.ts
-│   │       └── analyze-project.ts
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── .env.example
-├── git-nexus/            ← Code intelligence engine (sibling)
-│   ├── gitnexus-shared/  # Shared types + utilities
-│   └── gitnexus/         # Core analyzer + MCP server
-└── task-master/          ← Task management engine (sibling)
+task-analyzer/
+├── src/
+│   ├── index.ts          # HTTP entry point (Express + MCP SDK)
+│   ├── server.ts         # MCP tool registrations (3 tools)
+│   ├── utils.ts          # Bootstrap, exec, workspace, decrypt, ENV resolvers
+│   ├── types.ts          # Shared TypeScript types
+│   ├── agents/           # LangGraph 5-agent pipeline
+│   │   ├── graph.ts      # StateGraph builder
+│   │   ├── state.ts      # Shared state schema
+│   │   ├── decompose.ts  # Agent 1: tasks → modules/APIs/keywords
+│   │   ├── code-map.ts   # Agent 2: ChromaDB ∥ GitNexus search
+│   │   ├── gap-analysis.ts # Agent 3: spec vs code (conditional)
+│   │   ├── impact.ts     # Agent 4: blast radius + estimation
+│   │   └── report.ts     # Agent 5: health score + recommendations
+│   ├── core/             # Service integrations
+│   │   ├── gitnexus.ts   # GitNexus CLI wrapper
+│   │   ├── taskmaster.ts # Task-Master CLI wrapper
+│   │   ├── chromadb.ts   # Vector store
+│   │   ├── llm.ts        # LangChain multi-provider (OpenAI/Anthropic/Gemini/Ollama)
+│   │   ├── git.ts        # Git clone/pull operations
+│   │   ├── parsers.ts    # Spec parsers (xlsx/docx/md/redmine/url)
+│   │   └── pageindex.ts  # PageIndex tree generator
+│   └── tools/            # MCP tool handlers
+│       ├── setup-project.ts
+│       ├── analyze-spec.ts
+│       └── analyze-project.ts
+├── package.json
+├── tsconfig.json
+└── .env.example
 ```
 
 ## Installation & Setup
@@ -90,7 +85,7 @@ cd project_analyzer
 ```bash
 cd task-analyzer
 npm install
-cp .env.example .env   # Edit as needed
+cp .env.example .env   # Edit with your credentials
 npm run build
 ```
 
@@ -136,6 +131,8 @@ Server starts → bootstrap()
 
 ## MCP Tools
 
+All tools resolve credentials from **ENV variables** by default. Override per-request via tool call arguments.
+
 ### `setup_project`
 
 Clone + index a git repository.
@@ -146,9 +143,10 @@ Clone + index a git repository.
   "repoUrl": "https://github.com/org/repo",
   "branch": "develop",
   "gitUsername": "user",
-  "gitPat": "gAAAAA..."
+  "gitPat": "ghp_xxx"
 }
 ```
+> `gitUsername` and `gitPat` are optional if `GIT_USERNAME` and `GIT_PAT` env are set.
 
 **Output:** `{ projectId, localPath, stats: { files, symbols, edges } }`
 
@@ -162,15 +160,16 @@ Parse specification → tasks + business queries.
 ```json
 {
   "filePath": "/path/to/spec.xlsx",
-  "llm": {
-    "provider": "openai",
-    "apiKey": "sk-...",
-    "model": "gpt-4o"
-  },
   "projectId": "abc123",
-  "numTasks": 15
+  "numTasks": 15,
+  "llm": {
+    "provider": "gemini",
+    "apiKey": "AIza...",
+    "model": "gemini-2.5-flash"
+  }
 }
 ```
+> `llm` is optional if `LLM_PROVIDER` and `LLM_API_KEY` env are set.
 
 Supports: `.xlsx`, `.docx`, `.md`, Redmine URL, plain text.
 
@@ -186,12 +185,12 @@ Supports: `.xlsx`, `.docx`, `.md`, Redmine URL, plain text.
 ```json
 {
   "projectId": "abc123",
-  "tasks": [...],
-  "businessQueries": [...],
-  "specText": "raw spec...",
-  "llm": { "provider": "anthropic", "apiKey": "..." }
+  "tasks": [],
+  "businessQueries": [],
+  "specText": "raw spec..."
 }
 ```
+> `llm` is optional if `LLM_PROVIDER` and `LLM_API_KEY` env are set.
 
 **Output:**
 ```json
@@ -205,7 +204,7 @@ Supports: `.xlsx`, `.docx`, `.md`, Redmine URL, plain text.
       "estimate": { "codeHours", "testHours", "totalHours", "confidence" }
     }
   ],
-  "questionsForTeam": [...],
+  "questionsForTeam": [],
   "summary": { "totalEstimatedHours", "highRiskTasks", "recommendations" }
 }
 ```
@@ -231,7 +230,13 @@ START → Decompose → CodeMap → [GapAnalysis?] → Impact → Report → END
 |----------|----------|---------|-------------|
 | `PORT` | No | `3100` | HTTP server port |
 | `HOST` | No | `0.0.0.0` | Bind address |
-| `ENCRYPTION_KEY` | No | — | Fernet key for decrypting apiKey/gitPat |
+| `LLM_PROVIDER` | Yes | — | `openai` \| `anthropic` \| `gemini` \| `ollama` |
+| `LLM_API_KEY` | Yes | — | LLM provider API key |
+| `LLM_MODEL` | No | per-provider | Model name |
+| `LLM_BASE_URL` | No | — | Custom base URL (required for Ollama) |
+| `GIT_USERNAME` | No | — | Git username for PAT auth |
+| `GIT_PAT` | No | — | Personal Access Token |
+| `ENCRYPTION_KEY` | No | — | Fernet key for credential decryption |
 | `DEBUG` | No | — | Enable verbose logging |
 
 ## Troubleshooting
@@ -254,6 +259,5 @@ cd git-nexus/gitnexus && npm run build
 ### Bootstrap timeout
 Default timeout is 5 minutes per module. For slow networks:
 ```bash
-# Increase npm timeout
 npm config set fetch-timeout 600000
 ```
